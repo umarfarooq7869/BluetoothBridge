@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.25)
+project(BluetoothBridge LANGUAGES CXX)
+
+if(NOT WIN32)
+  message(FATAL_ERROR "BluetoothBridge targets Windows 10/11. Build from a Windows Developer Command Prompt with the Windows SDK installed.")
+endif()
+
+add_executable(BluetoothBridge WIN32 src/main.cpp)
+target_compile_features(BluetoothBridge PRIVATE cxx_std_20)
+target_compile_definitions(BluetoothBridge PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(BluetoothBridge PRIVATE windowsapp runtimeobject comctl32 shell32)
+if(MSVC)
+  target_compile_options(BluetoothBridge PRIVATE /W4 /permissive- /EHsc)
+else()
+  target_compile_options(BluetoothBridge PRIVATE -Wall -Wextra -Wpedantic)
+endif()
