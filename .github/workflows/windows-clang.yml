@@ -1,0 +1,78 @@
+name: Build BluetoothBridge (Windows Clang)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-clang:
+    name: Windows x64 / clang-cl / Release
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure MSVC environment and Windows SDK
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install LLVM Clang
+        shell: pwsh
+        run: |
+          choco install llvm --yes --no-progress
+          $llvmBin = Join-Path $env:ProgramFiles 'LLVM\bin'
+          if (-not (Test-Path (Join-Path $llvmBin 'clang-cl.exe'))) {
+            throw "clang-cl.exe was not found under $llvmBin"
+          }
+          "${llvmBin}" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Show toolchain versions
+        shell: pwsh
+        run: |
+          clang-cl --version
+          cmake --version
+          ninja --version
+
+      - name: Configure
+        shell: pwsh
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_CXX_COMPILER=clang-cl
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --verbose
+
+      - name: Verify executable exists
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'build\BluetoothBridge.exe'
+          if (-not (Test-Path $exe)) {
+            throw "Build completed but expected executable was not found: $exe"
+          }
+          Get-Item $exe | Format-List FullName, Length, LastWriteTime
+
+      - name: Package release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build\BluetoothBridge.exe dist\BluetoothBridge.exe
+          Copy-Item README.md dist\README.md
+          Compress-Archive -Path src, CMakeLists.txt, README.md, .github -DestinationPath dist\BluetoothBridge-source.zip -Force
+
+      - name: Upload Windows executable and source
+        uses: actions/upload-artifact@v4
+        with:
+          name: BluetoothBridge-windows-x64-clang
+          path: |
+            dist/BluetoothBridge.exe
+            dist/README.md
+            dist/BluetoothBridge-source.zip
+          if-no-files-found: error
+          retention-days: 30
